@@ -1,8 +1,7 @@
 use std::mem;
 
 pub struct Game {
-    x_size: usize,
-    y_size: usize,
+    size: BoardSize,
 
     // previous and current are the game boards. In order to make (x,y) coordinates make sense with
     // the nested vectors as vec[x][y] then the outer vec represents the columns (x values) and the
@@ -15,8 +14,7 @@ impl Game {
     // Build a new, empty game board.
     pub fn new(x_size: usize, y_size: usize) -> Self {
         Game {
-            x_size,
-            y_size,
+            size: BoardSize { x_size, y_size },
             previous: make_board(x_size, y_size),
             current: make_board(x_size, y_size),
         }
@@ -31,15 +29,15 @@ impl Game {
     }
 
     // Run a single iteration of the game.
-    fn iterate(&mut self) {
+    pub fn iterate(&mut self) {
         // Swap the boards so we can work off the current coming into this iteration.
         mem::swap(&mut self.current, &mut self.previous);
 
         // Clear the current board (now that we've saved the current state to previous).
         clear_board(&mut self.current);
 
-        for x in 0..self.x_size {
-            for y in 0..self.y_size {
+        for x in 0..self.size.x_size {
+            for y in 0..self.size.y_size {
                 self.current[x][y] = self.is_live(x, y);
             }
         }
@@ -48,59 +46,43 @@ impl Game {
     fn is_live(&self, x: usize, y: usize) -> bool {
         let mut live_neighbors = 0;
 
-        // translate (-1, -1)
-        let top_left_x = if x == 0 { self.x_size - 1 } else { x - 1 };
-        let top_left_y = if y == 0 { self.y_size - 1 } else { y - 1 };
-        if self.previous[top_left_x][top_left_y] {
+        let (check_x, check_y) = self.size.top_left(x, y);
+        if self.previous[check_x][check_y] {
             live_neighbors += 1;
         }
 
-        // translate (0, -1)
-        let top_x = x;
-        let top_y = if y == 0 { self.y_size - 1 } else { y - 1 };
-        if self.previous[top_x][top_y] {
+        let (check_x, check_y) = self.size.top(x, y);
+        if self.previous[check_x][check_y] {
             live_neighbors += 1;
         }
 
-        // translate (1, -1)
-        let top_right_x = if x == self.x_size - 1 { 0 } else { x + 1 };
-        let top_right_y = if y == 0 { self.y_size - 1 } else { y - 1 };
-        if self.previous[top_right_x][top_right_y] {
+        let (check_x, check_y) = self.size.top_right(x, y);
+        if self.previous[check_x][check_y] {
             live_neighbors += 1;
         }
 
-        // translate (-1, 0)
-        let left_x = if x == 0 { self.x_size - 1 } else { x - 1 };
-        let left_y = y;
-        if self.previous[left_x][left_y] {
+        let (check_x, check_y) = self.size.left(x, y);
+        if self.previous[check_x][check_y] {
             live_neighbors += 1;
         }
 
-        // translate (1, 0)
-        let right_x = if x == self.x_size - 1 { 0 } else { x + 1 };
-        let right_y = y;
-        if self.previous[right_x][right_y] {
+        let (check_x, check_y) = self.size.right(x, y);
+        if self.previous[check_x][check_y] {
             live_neighbors += 1;
         }
 
-        // translate (-1, 1)
-        let below_left_x = if x == 0 { self.x_size - 1 } else { x - 1 };
-        let below_left_y = if y == self.y_size - 1 { 0 } else { y + 1 };
-        if self.previous[below_left_x][below_left_y] {
+        let (check_x, check_y) = self.size.bottom_left(x, y);
+        if self.previous[check_x][check_y] {
             live_neighbors += 1;
         }
 
-        // translate (0, 1)
-        let below_x = x;
-        let below_y = if y == self.y_size - 1 { 0 } else { y + 1 };
-        if self.previous[below_x][below_y] {
+        let (check_x, check_y) = self.size.bottom(x, y);
+        if self.previous[check_x][check_y] {
             live_neighbors += 1;
         }
 
-        // translate (1, 1)
-        let below_right_x = if x == self.x_size - 1 { 0 } else { x + 1 };
-        let below_right_y = if y == self.y_size - 1 { 0 } else { y + 1 };
-        if self.previous[below_right_x][below_right_y] {
+        let (check_x, check_y) = self.size.bottom_right(x, y);
+        if self.previous[check_x][check_y] {
             live_neighbors += 1;
         }
 
@@ -114,17 +96,31 @@ impl Game {
     }
 
     // Set up a fresh state, clearing any previous state from the game board.
-    pub fn set<I: Iterator<Item = (usize, usize)>>(&mut self, pairs: I) {
+    pub fn clear_and_set<I: Iterator<Item = (usize, usize)>>(&mut self, pairs: I) {
         clear_board(&mut self.current);
         clear_board(&mut self.previous);
 
         for (x, y) in pairs {
-            if x > self.x_size || y > self.y_size {
+            if x > self.size.x_size || y > self.size.y_size {
                 panic!("unexpected input coordinate");
             }
 
             self.current[x][y] = true
         }
+    }
+
+    pub fn set<I: Iterator<Item = (usize, usize)>>(&mut self, pairs: I) {
+        for (x, y) in pairs {
+            if x > self.size.x_size || y > self.size.y_size {
+                panic!("unexpected input coordinate");
+            }
+
+            self.current[x][y] = true
+        }
+    }
+
+    pub fn board(&self) -> &[Vec<bool>] {
+        &self.current
     }
 }
 
@@ -144,9 +140,164 @@ fn clear_board(board: &mut [Vec<bool>]) {
     }
 }
 
+struct BoardSize {
+    x_size: usize,
+    y_size: usize,
+}
+
+impl BoardSize {
+    fn top_left(&self, x: usize, y: usize) -> (usize, usize) {
+        // translate (-1, -1)
+        (
+            if x == 0 { self.x_size - 1 } else { x - 1 },
+            if y == 0 { self.y_size - 1 } else { y - 1 },
+        )
+    }
+
+    fn top(&self, x: usize, y: usize) -> (usize, usize) {
+        // translate (0, -1)
+        (x, if y == 0 { self.y_size - 1 } else { y - 1 })
+    }
+
+    fn top_right(&self, x: usize, y: usize) -> (usize, usize) {
+        // translate (1, -1)
+        (
+            if x == self.x_size - 1 { 0 } else { x + 1 },
+            if y == 0 { self.y_size - 1 } else { y - 1 },
+        )
+    }
+
+    fn left(&self, x: usize, y: usize) -> (usize, usize) {
+        // translate (-1, 0)
+        (if x == 0 { self.x_size - 1 } else { x - 1 }, y)
+    }
+
+    fn right(&self, x: usize, y: usize) -> (usize, usize) {
+        // translate (1, 0)
+        (if x == self.x_size - 1 { 0 } else { x + 1 }, y)
+    }
+
+    fn bottom_left(&self, x: usize, y: usize) -> (usize, usize) {
+        // translate (-1, 1)
+        (
+            if x == 0 { self.x_size - 1 } else { x - 1 },
+            if y == self.y_size - 1 { 0 } else { y + 1 },
+        )
+    }
+
+    fn bottom(&self, x: usize, y: usize) -> (usize, usize) {
+        // translate (0, 1)
+        (x, if y == self.y_size - 1 { 0 } else { y + 1 })
+    }
+
+    fn bottom_right(&self, x: usize, y: usize) -> (usize, usize) {
+        // translate (1, 1)
+        (
+            if x == self.x_size - 1 { 0 } else { x + 1 },
+            if y == self.y_size - 1 { 0 } else { y + 1 },
+        )
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_board_size_top_left() {
+        let size = BoardSize {
+            x_size: 2,
+            y_size: 2,
+        };
+        assert_eq!((1, 1), size.top_left(0, 0));
+        assert_eq!((0, 0), size.top_left(1, 1));
+        assert_eq!((0, 1), size.top_left(1, 0));
+        assert_eq!((1, 0), size.top_left(0, 1));
+    }
+
+    #[test]
+    fn test_board_size_top() {
+        let size = BoardSize {
+            x_size: 2,
+            y_size: 2,
+        };
+        assert_eq!((0, 1), size.top(0, 0));
+        assert_eq!((1, 0), size.top(1, 1));
+        assert_eq!((1, 1), size.top(1, 0));
+        assert_eq!((0, 0), size.top(0, 1));
+    }
+
+    #[test]
+    fn test_board_size_top_right() {
+        let size = BoardSize {
+            x_size: 2,
+            y_size: 2,
+        };
+        assert_eq!((1, 1), size.top_right(0, 0));
+        assert_eq!((0, 0), size.top_right(1, 1));
+        assert_eq!((0, 1), size.top_right(1, 0));
+        assert_eq!((1, 0), size.top_right(0, 1));
+    }
+
+    #[test]
+    fn test_board_size_left() {
+        let size = BoardSize {
+            x_size: 2,
+            y_size: 2,
+        };
+        assert_eq!((1, 0), size.left(0, 0));
+        assert_eq!((0, 1), size.left(1, 1));
+        assert_eq!((0, 0), size.left(1, 0));
+        assert_eq!((1, 1), size.left(0, 1));
+    }
+
+    #[test]
+    fn test_board_size_right() {
+        let size = BoardSize {
+            x_size: 2,
+            y_size: 2,
+        };
+        assert_eq!((1, 0), size.left(0, 0));
+        assert_eq!((0, 1), size.left(1, 1));
+        assert_eq!((0, 0), size.left(1, 0));
+        assert_eq!((1, 1), size.left(0, 1));
+    }
+
+    #[test]
+    fn test_board_size_bottom_left() {
+        let size = BoardSize {
+            x_size: 2,
+            y_size: 2,
+        };
+        assert_eq!((1, 1), size.bottom_left(0, 0));
+        assert_eq!((0, 0), size.bottom_left(1, 1));
+        assert_eq!((0, 1), size.bottom_left(1, 0));
+        assert_eq!((1, 0), size.bottom_left(0, 1));
+    }
+
+    #[test]
+    fn test_board_size_bottom() {
+        let size = BoardSize {
+            x_size: 2,
+            y_size: 2,
+        };
+        assert_eq!((0, 1), size.bottom(0, 0));
+        assert_eq!((1, 0), size.bottom(1, 1));
+        assert_eq!((1, 1), size.bottom(1, 0));
+        assert_eq!((0, 0), size.bottom(0, 1));
+    }
+
+    #[test]
+    fn test_board_size_bottom_right() {
+        let size = BoardSize {
+            x_size: 2,
+            y_size: 2,
+        };
+        assert_eq!((1, 1), size.bottom_right(0, 0));
+        assert_eq!((0, 0), size.bottom_right(1, 1));
+        assert_eq!((0, 1), size.bottom_right(1, 0));
+        assert_eq!((1, 0), size.bottom_right(0, 1));
+    }
 
     #[test]
     fn test_make_board() {
