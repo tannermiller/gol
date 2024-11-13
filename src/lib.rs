@@ -95,6 +95,11 @@ impl Game {
         }
     }
 
+    pub fn clear(&mut self) {
+        clear_board(&mut self.current);
+        clear_board(&mut self.previous);
+    }
+
     // Set up a fresh state, clearing any previous state from the game board.
     pub fn clear_and_set<I: Iterator<Item = (usize, usize)>>(&mut self, pairs: I) {
         clear_board(&mut self.current);
@@ -119,8 +124,16 @@ impl Game {
         }
     }
 
-    pub fn board(&self) -> &[Vec<bool>] {
-        &self.current
+    pub fn cell(&mut self, x: usize, y: usize) -> &mut bool {
+        &mut self.current[x][y]
+    }
+
+    pub fn x_size(&self) -> usize {
+        self.size.x_size
+    }
+
+    pub fn y_size(&self) -> usize {
+        self.size.y_size
     }
 }
 

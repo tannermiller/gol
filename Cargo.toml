@@ -5,3 +5,5 @@ edition = "2021"
 description = "It's Conway's Game Of Life!"
 
 [dependencies]
+eframe = "0.29.1"
+egui = "0.29.1"
